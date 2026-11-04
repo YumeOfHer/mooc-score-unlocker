@@ -1,9 +1,9 @@
 // ==UserScript==
-// @name         MOOC 测验分数本地解锁 (非商业开源版)
-// @namespace    https://github.com/你的用户名/mooc-score-unlocker
+// @name         MOOC 测验分数本地解锁
+// @namespace    https://github.com/DreamOfHerDev/mooc-score-unlocker
 // @version      1.0.0
 // @description  自动拦截 MOOC 测验接口，在本地强行显示被锁定的真实分数。仅供学习交流，严禁用于商业用途或违规刷课。
-// @author       你的名字/ID
+// @author       DreamOfHerDev
 // @match        *://*.icourse163.org/learn/*
 // @grant        none
 // @run-at       document-start
