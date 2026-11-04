@@ -1,9 +1,9 @@
 // ==UserScript==
 // @name         MOOC 测验分数本地解锁
-// @namespace    https://github.com/DreamOfHerDev/mooc-score-unlocker
+// @namespace    https://github.com/YumeOfHer/mooc-score-unlocker
 // @version      1.0.0
 // @description  自动拦截 MOOC 测验接口，在本地强行显示被锁定的真实分数。仅供学习交流，严禁用于商业用途或违规刷课。
-// @author       DreamOfHerDev
+// @author       YumeOfHer
 // @match        *://*.icourse163.org/learn/*
 // @grant        none
 // @run-at       document-start
@@ -48,7 +48,7 @@
 
                 // 5. 如果找到了分数，替换页面的显示
                 if (foundScore !== null) {
-                    console.log(`%c [MOOC Helper] 成功提取分数：${foundScore}`, 'color: white; background: #28a745; padding: 3px; border-radius: 3px;');
+                    console.log(`%c [YumeOfHer] 成功提取分数：${foundScore}`, 'color: white; background: #28a745; padding: 3px; border-radius: 3px;');
                     
                     // 延迟执行，确保原生网页已经渲染出“解锁得分情况”这个节点
                     setTimeout(() => {
