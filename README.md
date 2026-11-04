@@ -13,7 +13,7 @@
 ## 🚀 安装与使用
 1. 在你的浏览器（Chrome / Edge / Firefox）中安装 [Tampermonkey 插件](https://www.tampermonkey.net/)。
 2. **点击下方链接一键安装本脚本**（或者直接把 `.user.js` 文件拖入浏览器）：
-   👉 **[点击这里安装脚本]([YOUR_RAW_LINK_HERE])** 👈
+   👉 **[点击这里安装脚本](https://raw.githubusercontent.com/YumeOfHer/mooc-score-unlocker/refs/heads/main/.user.js)** 👈
 3. 打开中国大学MOOC的测验结果页面，刷新页面即可看到真实分数。
 
 ## 🛠️ 原理说明
