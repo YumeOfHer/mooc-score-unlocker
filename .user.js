@@ -20,51 +20,61 @@
 (function() {
     'use strict';
 
-    // 1. 备份浏览器原生的 fetch 请求
+    console.log("[MOOC 解锁插件] 已注入页面，正在静默监听成绩接口...");
+
+    // 保存原生的 fetch 方法，确保不影响页面原本的正常请求
     const originalFetch = window.fetch;
-    
-    // 2. 劫持 fetch 请求进行“旁听”
+
+    // 重写 fetch 方法，充当“中间人”
     window.fetch = async function(...args) {
+        // 让浏览器先发起正常的网络请求
         const response = await originalFetch.apply(this, args);
+        
+        // 提取请求的 URL
         const url = args[0] instanceof Request ? args[0].url : args[0];
 
-        // 3. 只要发现请求了获取测验信息的接口
+        // 🎯 精准定位查分接口
         if (url && url.includes('mocQuizRpcBean.getQuizInfo.rpc')) {
+            console.log("%c [MOOC 解锁插件] 成功捕获查分接口！", "color: #17a2b8; font-weight: bold;");
+            
+            // 克隆一份响应，避免干扰页面正常的业务逻辑
             response.clone().json().then(data => {
-                let foundScore = null;
-
-                // 4. 递归遍历返回的数据，精准寻找分数
-                function findScore(obj) {
-                    for (let key in obj) {
-                        // 只要键名是 finalScore 或 score，且是数字，就抓取
-                        if ((key === 'finalScore' || key === 'score') && typeof obj[key] === 'number') {
-                            foundScore = obj[key];
-                        } else if (typeof obj[key] === 'object' && obj[key] !== null) {
-                            findScore(obj[key]);
-                        }
+                // 解析数据，根据前文抓包，真实结构在 result.targetAnswerform (注意是小写 f)
+                if (data && data.result && data.result.targetAnswerform) {
+                    const form = data.result.targetAnswerform;
+                    const score = form.finalScore; 
+                    const total = form.totalScore;
+                    
+                    // 判断服务器是否下发了分数
+                    if (score !== undefined && score !== null) {
+                        console.log(`%c [MOOC 解锁插件] 截获真实分数：${score} / ${total}`, "color: white; background: #28a745; padding: 4px; border-radius: 4px; font-size: 14px;");
+                        
+                        // 开始替换页面文字，设置轮询等待页面渲染出那个锁
+                        let count = 0;
+                        const interval = setInterval(() => {
+                            const spanElement = document.querySelector('.j-triggerLockScore');
+                            if (spanElement) {
+                                // 替换文字
+                                spanElement.innerHTML = `<span style="color: #e74c3c; font-weight: 900; font-size: 18px;">${score}</span>`;
+                                // 去除原本用于遮挡的背景图或样式
+                                spanElement.style.background = 'none';
+                                spanElement.className = ''; // 移除遮罩类名
+                                
+                                console.log("[MOOC 解锁插件] 页面显示替换成功！");
+                                clearInterval(interval); // 成功后就停止轮询
+                            }
+                            
+                            // 最多轮询 5 秒，防止死循环
+                            if (count++ > 50) clearInterval(interval);
+                        }, 100);
                     }
                 }
-                findScore(data);
-
-                // 5. 如果找到了分数，替换页面的显示
-                if (foundScore !== null) {
-                    console.log(`%c [YumeOfHer] 成功提取分数：${foundScore}`, 'color: white; background: #28a745; padding: 3px; border-radius: 3px;');
-                    
-                    // 延迟执行，确保原生网页已经渲染出“解锁得分情况”这个节点
-                    setTimeout(() => {
-                        const spanElement = document.querySelector('.j-triggerLockScore');
-                        if (spanElement) {
-                            // 将文字替换为红色加粗的分数，并且去除原本锁的背景图
-                            spanElement.innerHTML = `<span style="color:#e74c3c; font-weight:900; font-size:18px;">${foundScore}</span>`;
-                            spanElement.style.background = 'none';
-                            spanElement.className = ''; 
-                        }
-                    }, 1000); 
-                }
             }).catch(e => {
-                // 静默处理解析错误，不影响网页正常使用
+                // 忽略解析错误，保持静默
             });
         }
+        
+        // 返回原生结果，不破坏页面本身的运行
         return response;
     };
 })();
