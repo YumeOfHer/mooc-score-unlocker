@@ -1,12 +1,12 @@
 // ==UserScript==
-// @name         MOOC 测验分数本地解锁
+// @name         MOOC 测验分数本地解锁 (修复时序版)
 // @namespace    https://github.com/YumeOfHer/mooc-score-unlocker
-// @version      1.0.0
-// @description  自动拦截 MOOC 测验接口，在本地强行显示被锁定的真实分数。仅供学习交流，严禁用于商业用途或违规刷课。
+// @version      1.1.0
+// @description  自动拦截 MOOC 测验接口，在本地强行显示被锁定的真实分数。修复了因页面加载顺序导致的找不到缓存问题。仅供学习交流，严禁用于商业用途或违规刷课。
 // @author       YumeOfHer
 // @match        *://*.icourse163.org/learn/*
 // @grant        none
-// @run-at       document-start
+// @run-at       document-idle
 // @license      MIT
 // ==/UserScript==
 
@@ -21,47 +21,54 @@
     console.log("====== 🎯 开始精准重放请求 ======");
 
     // 1. 从 URL 的 Hash (#) 部分精准提取测验 ID (tid) 和 答题记录 ID (targetAid)
-    // 这种方式可以避免受到 URL 中问号后面其他无关参数的干扰
     const hash = window.location.hash;
     const match = hash.match(/id=(\d+)&aid=(\d+)/);
     
-    // 如果当前页面地址栏的 Hash 里没有匹配到这两个核心参数，则提示并终止执行
     if (!match) {
         console.log("❌ 网址里没找到 id 和 aid，请确认当前是在答题页面。");
         return;
     }
     
-    // 提取正则匹配到的参数
     const tid = match[1];
     const targetAid = match[2];
     console.log(`✅ 动态获取参数: tid=${tid}, targetAid=${targetAid}`);
 
-    // 2. 从浏览器的性能资源记录（内存缓存）中，查找刚刚页面真实发出的那个接口请求
-    // 这样做的目的是为了直接“白嫖”浏览器自动生成的最精准的 csrfKey，无需自己伪造
-    const resources = performance.getEntriesByType("resource");
-    const realRequest = resources.find(item => item.name.includes('mocQuizRpcBean.getQuizInfo.rpc'));
+    // 2. 轮询等待函数（解决 document-idle 时请求还没发出的问题）
+    function waitForResource(keyword, timeout = 10000) {
+        return new Promise((resolve) => {
+            const start = Date.now();
+            const timer = setInterval(() => {
+                const res = performance.getEntriesByType("resource").find(item => item.name.includes(keyword));
+                if (res || Date.now() - start > timeout) {
+                    clearInterval(timer);
+                    resolve(res);
+                }
+            }, 200); // 每 200 毫秒找一次
+        });
+    }
+
+    console.log("⏳ 正在等待页面发出真实请求缓存...");
+    const realRequest = await waitForResource('mocQuizRpcBean.getQuizInfo.rpc');
     
-    // 如果缓存里没有找到该请求，说明页面可能还没发出请求，提示用户刷新页面数据
     if (!realRequest) {
-        console.log("❌ 没找到请求缓存，请随便点一下页面刷新数据后再运行。");
+        console.log("❌ 等待超时，依然没找到请求缓存。请刷新页面重试。");
         return;
     }
-    // 提取包含完整 csrfKey 的真实请求 URL
+
     const realUrl = realRequest.name;
+    console.log("✅ 成功截获真实请求 URL！");
 
     try {
-        // 3. 发起请求（严格按照抓包成功的 JSON 结构进行构造）
+        // 3. 发起请求
         const response = await fetch(realUrl, {
-            method: "POST", // 接口要求必须用 POST
+            method: "POST",
             headers: {
                 "Content-Type": "application/json;charset=UTF-8",
-                // 提取 URL 中的 csrfKey，作为 edu-script-token 发送
                 "edu-script-token": new URL(realUrl).searchParams.get('csrfKey'),
-                "nonce": "1001", // 系统常量
-                "system": "v1"   // 系统常量
+                "nonce": "1001",
+                "system": "v1"
             },
-            credentials: "include", // 核心凭证：强制让浏览器带上当前账号的 Cookie
-            // 构造请求体，将提取到的 tid 和 targetAid 转为数字类型传入
+            credentials: "include",
             body: JSON.stringify({
                 "tid": Number(tid),
                 "targetAid": Number(targetAid),
@@ -70,37 +77,37 @@
             })
         });
 
-        // 将返回的数据解析为 JSON 格式
         const data = await response.json();
         
-        // 4. 解析数据并显示（注意：实际接口返回的是 targetAnswerform，首字母小写）
+        // 4. 解析数据并显示
         if (data && data.result && data.result.targetAnswerform) {
-            // 提取分数、总分以及答卷人 ID
             const score = data.result.targetAnswerform.finalScore;
             const total = data.result.targetAnswerform.totalScore;
             const answererId = data.result.targetAnswerform.answererId;
             
-            // 在控制台打印高亮的结果，并删除了“模拟”二字
             console.log(`%c 🎉 请求成功！最终得分：${score} / ${total}`, "color: white; background: #28a745; padding: 5px; font-size: 18px;");
             console.log(`👤 当前返回的答卷人 ID: ${answererId} (核对一下是不是你自己的)`);
             
-            // 查找页面上显示“解锁得分情况”的那个 span 元素
-            const spanElement = document.querySelector('.j-triggerLockScore');
-            if (spanElement) {
-                // 如果找到了，就把里面替换成红色的真实分数
-                spanElement.innerHTML = `<span style="color:red; font-weight:900; font-size:18px;">${score}</span>`;
-                // 去掉那个“锁”的背景图
-                spanElement.style.background = 'none';
-                // 清除可能干扰显示的类名
-                spanElement.className = ''; 
+            // 🚨 等待 DOM 渲染后再替换（解决元素还没渲染出来的问题）
+            function replaceScore() {
+                const spanElement = document.querySelector('.j-triggerLockScore');
+                if (spanElement) {
+                    spanElement.innerHTML = `<span style="color:red; font-weight:900; font-size:18px;">${score}</span>`;
+                    spanElement.style.background = 'none';
+                    spanElement.className = ''; 
+                    console.log("✅ 页面分数已替换！");
+                } else {
+                    // 如果没找到，等 500 毫秒再找一次
+                    setTimeout(replaceScore, 500);
+                }
             }
+            replaceScore(); // 开始尝试替换
+
         } else {
-            // 如果接口通了但没拿到目标数据，打印返回的结构以便排查
             console.log("❌ 接口通了，但没提取到分数。返回数据：", data);
         }
 
     } catch (error) {
-        // 捕获并打印网络请求过程中的任何错误
         console.error("❌ 请求失败：", error);
     }
 })();
